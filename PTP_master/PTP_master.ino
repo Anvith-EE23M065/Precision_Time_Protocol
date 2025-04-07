@@ -46,13 +46,15 @@ void loop() {
     udp.print("SYNC"); // Send SYNC message
     T1 = master_counter; // Save timestamp when SYNC is sent
     udp.endPacket();
+    Serial.printf("Sent SYNC message @ T1 = %u\n", T1);
     delay(10);
 
     // Send FOLLOW_UP message with T1
     udp.beginPacket(IPAddress(192,168,4,255), port);
     udp.print("FOLLOW_UP"); // Send FOLLOW_UP Message
     udp.write((uint8_t*)&T1, sizeof(T1)); // Send T1 value
-    udp.endPacket();
+    udp.endPacket();    
+    Serial.printf("Sent FOLLOW_UP message @ Time = %u\n", master_counter);
     delay(10);
 
     char packetBuffer[255]; // To recieve message from udp
@@ -68,6 +70,8 @@ void loop() {
         udp.print("DELAY_RESP"); // Delay Response
         udp.write((uint8_t*)&T4, sizeof(T4)); // Send T4 value
         udp.endPacket(); 
+        Serial.printf("Received DELAY_REQ @ time = %u\n", master_counter);
       }
     }
+    Serial.printf("Master counter : %u\n", master_counter);
 }

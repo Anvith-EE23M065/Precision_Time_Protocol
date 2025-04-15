@@ -4,9 +4,15 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+//For filehandling and logging
+#include <FS.h>
+
 const char* apSSID = "ESP32-Master"; //AP-Name
 const char* apPassword = "12345678"; //AP Password (minimum 8 characters)
 WiFiUDP udp;
+
+bool drift = false;
+uint32_t last_logged_counter = 0; 
 
 const int port = 1234;
 
@@ -19,25 +25,38 @@ void IRAM_ATTR onTimer() {
 
 void setup() {
     Serial.begin(115200);
+
+    drift = false;
+    
     //For counter
-    timer = timerBegin(1000000); // Timer 1MHz
+    timer = timerBegin(1000000); // Timer 80/xMHz
     timerAttachInterrupt(timer, &onTimer); // Attach function onTimer() to timer
-    timerAlarm(timer, 1000000, true, 0); // Set alarm to call every second(value in us)
+    timerAlarm(timer, 10, true, 0); // Set alarm to call every second(value in us)
 
     // Start ESP32 as an Access Point(AP)
     WiFi.softAP(apSSID, apPassword); 
     IPAddress masterIP = WiFi.softAPIP(); // Get IP address of AP
     Serial.print("Master AP IP : ");
     Serial.print(masterIP);
+    Serial.println(" ");
 
     //Start UDP communication
     udp.begin(port);
 }
 
 void loop() {
-    // Serial.print("Counter: ");
-    // Serial.println(master_counter);
-    // delay(1000);
+    
+    //Drift mode
+    if(drift){
+      if(master_counter - last_logged_counter >= 10 || master_counter - last_logged_counter < 0){
+      udp.beginPacket(IPAddress(192, 168, 4, 3), port);
+      udp.printf("MASTER,%lu,%u\n",millis(),master_counter);
+      udp.endPacket();
+      Serial.printf("MASTER,%lu,%u\n", millis(), master_counter);
+      last_logged_counter = master_counter;
+      }
+      return;
+    }
 
     uint32_t T1, T4; // T1 and T4
     
@@ -47,7 +66,7 @@ void loop() {
     T1 = master_counter; // Save timestamp when SYNC is sent
     udp.endPacket();
     Serial.printf("Sent SYNC message @ T1 = %u\n", T1);
-    delay(1000);
+    
 
     // Send FOLLOW_UP message with T1
     udp.beginPacket(IPAddress(192,168,4,255), port);
@@ -55,7 +74,7 @@ void loop() {
     udp.write((uint8_t*)&T1, sizeof(T1)); // Send T1 value
     udp.endPacket();    
     Serial.printf("Sent FOLLOW_UP message @ Time = %u\n", master_counter);
-    delay(1000);
+    ;
 
     char packetBuffer[255]; // To recieve message from udp
     int packetSize = udp.parsePacket();
@@ -72,6 +91,11 @@ void loop() {
         udp.write((uint8_t*)&T4, sizeof(T4)); // Send T4 value
         udp.endPacket(); 
         Serial.printf("Sent DELAY t4 message @ Time = %u\n", T4);
+      }
+
+      else if(command == "DRIFT_READY"){
+        Serial.println("Received DRIFT_READY, Entering drift mode...");
+        drift = true;
       }
     }
     Serial.printf("Master counter : %u\n", master_counter);

@@ -16,6 +16,8 @@ uint32_t last_logged_counter = 0;
 
 const int port = 1234;
 
+const int time_step = 100; // for logging
+
 hw_timer_t *timer = NULL;
 volatile uint32_t master_counter = 0;
 
@@ -31,7 +33,7 @@ void setup() {
     //For counter
     timer = timerBegin(1000000); // Timer 80/xMHz
     timerAttachInterrupt(timer, &onTimer); // Attach function onTimer() to timer
-    timerAlarm(timer, 10, true, 0); // Set alarm to call every second(value in us)
+    timerAlarm(timer, 100, true, 0); // Set alarm to call every second(value in us)
 
     // Start ESP32 as an Access Point(AP)
     WiFi.softAP(apSSID, apPassword); 
@@ -48,7 +50,7 @@ void loop() {
     
     //Drift mode
     if(drift){
-      if(master_counter - last_logged_counter >= 10 || master_counter - last_logged_counter < 0){
+      if(master_counter - last_logged_counter >= time_step || master_counter - last_logged_counter < 0){
       udp.beginPacket(IPAddress(192, 168, 4, 3), port);
       udp.printf("MASTER,%lu,%u\n",millis(),master_counter);
       udp.endPacket();
